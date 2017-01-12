@@ -14,6 +14,7 @@
 #include <boost/multi_index_container.hpp>
 
 #include <boost/chrono.hpp>
+#include <boost/config.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/thread.hpp>
@@ -22,11 +23,20 @@
 #include <array>
 #include <atomic>
 #include <fstream>
+#include <iostream>
 #include <stdexcept>
 #include <typeindex>
 
-#ifndef CHAINBASE_DEFAULT_NUM_RW_LOCKS
-   #define CHAINBASE_DEFAULT_NUM_RW_LOCKS 10
+#ifndef CHAINBASE_NUM_RW_LOCKS
+   #define CHAINBASE_NUM_RW_LOCKS 10
+#endif
+
+#ifdef CHAINBASE_CHECK_LOCKING
+   #define CHAINBASE_REQUIRE_READ_LOCK() require_read_lock()
+   #define CHAINBASE_REQUIRE_WRITE_LOCK() require_write_lock()
+#else
+   #define CHAINBASE_REQUIRE_READ_LOCK()
+   #define CHAINBASE_REQUIRE_WRITE_LOCK()
 #endif
 
 namespace chainbase {
@@ -131,6 +141,29 @@ namespace chainbase {
          id_type_set                  new_ids;
          id_type                      old_next_id = 0;
          int64_t                      revision = 0;
+   };
+
+   /**
+    * The code we want to implement is this:
+    *
+    * ++target; try { ... } finally { --target }
+    *
+    * In C++ the only way to implement finally is to create a class
+    * with a destructor, so that's what we do here.
+    */
+   class int_incrementer
+   {
+      public:
+         int_incrementer( int32_t& target ) : _target(target)
+         { ++_target; }
+         ~int_incrementer()
+         { --_target; }
+
+         int32_t get()const
+         { return _target; }
+
+      private:
+         int32_t& _target;
    };
 
    /**
@@ -586,17 +619,22 @@ namespace chainbase {
          void next_lock()
          {
             _current_lock++;
-            new( &_locks[ _current_lock % 10 ] ) read_write_mutex();
+            new( &_locks[ _current_lock % CHAINBASE_NUM_RW_LOCKS ] ) read_write_mutex();
          }
 
          read_write_mutex& current_lock()
          {
-            return _locks[ _current_lock % 10 ];
+            return _locks[ _current_lock % CHAINBASE_NUM_RW_LOCKS ];
+         }
+
+         uint32_t current_lock_num()
+         {
+            return _current_lock;
          }
 
       private:
-         std::array< read_write_mutex, 10 >        _locks;
-         std::atomic< uint32_t >                   _current_lock;
+         std::array< read_write_mutex, CHAINBASE_NUM_RW_LOCKS >     _locks;
+         std::atomic< uint32_t >                                    _current_lock;
    };
 
 
@@ -615,6 +653,23 @@ namespace chainbase {
          void close();
          void flush();
          void wipe( const bfs::path& dir );
+         void set_require_locking( bool enable_require_locking );
+
+#ifdef CHAINBASE_CHECK_LOCKING
+         void require_lock_fail( const char* lock_type )const;
+
+         void require_read_lock()const
+         {
+            if( BOOST_UNLIKELY( _enable_require_locking & _read_only & (_read_lock_count <= 0) ) )
+               require_lock_fail("read");
+         }
+
+         void require_write_lock()
+         {
+            if( BOOST_UNLIKELY( _enable_require_locking & (_write_lock_count <= 0) ) )
+               require_lock_fail("write");
+         }
+#endif
 
          struct session {
             public:
@@ -672,6 +727,7 @@ namespace chainbase {
 
          void set_revision( uint64_t revision )
          {
+             CHAINBASE_REQUIRE_WRITE_LOCK();
              for( auto i : _index_list ) i->set_revision( revision );
          }
 
@@ -716,7 +772,9 @@ namespace chainbase {
          }
 
          template<typename MultiIndexType>
-         const generic_index<MultiIndexType>& get_index()const {
+         const generic_index<MultiIndexType>& get_index()const
+         {
+            CHAINBASE_REQUIRE_READ_LOCK();
             typedef generic_index<MultiIndexType> index_type;
             typedef index_type*                   index_type_ptr;
             assert( _index_map.size() > index_type::value_type::type_id );
@@ -725,7 +783,9 @@ namespace chainbase {
          }
 
          template<typename MultiIndexType, typename ByIndex>
-         auto get_index()const -> decltype( ((generic_index<MultiIndexType>*)( nullptr ))->indicies().template get<ByIndex>() ) {
+         auto get_index()const -> decltype( ((generic_index<MultiIndexType>*)( nullptr ))->indicies().template get<ByIndex>() )
+         {
+            CHAINBASE_REQUIRE_READ_LOCK();
             typedef generic_index<MultiIndexType> index_type;
             typedef index_type*                   index_type_ptr;
             assert( _index_map.size() > index_type::value_type::type_id );
@@ -734,7 +794,9 @@ namespace chainbase {
          }
 
          template<typename MultiIndexType>
-         generic_index<MultiIndexType>& get_mutable_index() {
+         generic_index<MultiIndexType>& get_mutable_index()
+         {
+            CHAINBASE_REQUIRE_WRITE_LOCK();
             typedef generic_index<MultiIndexType> index_type;
             typedef index_type*                   index_type_ptr;
             assert( _index_map.size() > index_type::value_type::type_id );
@@ -745,6 +807,7 @@ namespace chainbase {
          template< typename ObjectType, typename IndexedByType, typename CompatibleKey >
          const ObjectType* find( CompatibleKey&& key )const
          {
+             CHAINBASE_REQUIRE_READ_LOCK();
              typedef typename get_index_type< ObjectType >::type index_type;
              const auto& idx = get_index< index_type >().indicies().template get< IndexedByType >();
              auto itr = idx.find( std::forward< CompatibleKey >( key ) );
@@ -755,6 +818,7 @@ namespace chainbase {
          template< typename ObjectType >
          const ObjectType* find( oid< ObjectType > key = oid< ObjectType >() ) const
          {
+             CHAINBASE_REQUIRE_READ_LOCK();
              typedef typename get_index_type< ObjectType >::type index_type;
              const auto& idx = get_index< index_type >().indices();
              auto itr = idx.find( key );
@@ -765,6 +829,7 @@ namespace chainbase {
          template< typename ObjectType, typename IndexedByType, typename CompatibleKey >
          const ObjectType& get( CompatibleKey&& key )const
          {
+             CHAINBASE_REQUIRE_READ_LOCK();
              auto obj = find< ObjectType, IndexedByType >( std::forward< CompatibleKey >( key ) );
              if( !obj ) BOOST_THROW_EXCEPTION( std::out_of_range( "unknown key" ) );
              return *obj;
@@ -773,6 +838,7 @@ namespace chainbase {
          template< typename ObjectType >
          const ObjectType& get( const oid< ObjectType >& key = oid< ObjectType >() )const
          {
+             CHAINBASE_REQUIRE_READ_LOCK();
              auto obj = find< ObjectType >( key );
              if( !obj ) BOOST_THROW_EXCEPTION( std::out_of_range( "unknown key") );
              return *obj;
@@ -781,6 +847,7 @@ namespace chainbase {
          template<typename ObjectType, typename Modifier>
          void modify( const ObjectType& obj, Modifier&& m )
          {
+             CHAINBASE_REQUIRE_WRITE_LOCK();
              typedef typename get_index_type<ObjectType>::type index_type;
              get_mutable_index<index_type>().modify( obj, m );
          }
@@ -788,6 +855,7 @@ namespace chainbase {
          template<typename ObjectType>
          void remove( const ObjectType& obj )
          {
+             CHAINBASE_REQUIRE_WRITE_LOCK();
              typedef typename get_index_type<ObjectType>::type index_type;
              return get_mutable_index<index_type>().remove( obj );
          }
@@ -795,6 +863,7 @@ namespace chainbase {
          template<typename ObjectType, typename Constructor>
          const ObjectType& create( Constructor&& con )
          {
+             CHAINBASE_REQUIRE_WRITE_LOCK();
              typedef typename get_index_type<ObjectType>::type index_type;
              return get_mutable_index<index_type>().emplace( std::forward<Constructor>(con) );
          }
@@ -803,6 +872,10 @@ namespace chainbase {
          auto with_read_lock( Lambda&& callback, uint64_t wait_micro = 1000000 ) -> decltype( (*(Lambda*)nullptr)() )
          {
             read_lock lock( _rw_manager->current_lock(), bip::defer_lock_type() );
+#ifdef CHAINBASE_CHECK_LOCKING
+            BOOST_ATTRIBUTE_UNUSED
+            int_incrementer ii( _read_lock_count );
+#endif
 
             if( !wait_micro )
             {
@@ -825,6 +898,10 @@ namespace chainbase {
                BOOST_THROW_EXCEPTION( std::logic_error( "cannot acquire write lock on read-only process" ) );
 
             write_lock lock( _rw_manager->current_lock(), boost::defer_lock_t() );
+#ifdef CHAINBASE_CHECK_LOCKING
+            BOOST_ATTRIBUTE_UNUSED
+            int_incrementer ii( _write_lock_count );
+#endif
 
             if( !wait_micro )
             {
@@ -835,6 +912,7 @@ namespace chainbase {
                while( !lock.timed_lock( boost::posix_time::microsec_clock::local_time() + boost::posix_time::microseconds( wait_micro ) ) )
                {
                   _rw_manager->next_lock();
+                  std::cerr << "Lock timeout, moving to lock " << _rw_manager->current_lock_num() << std::endl;
                   lock = write_lock( _rw_manager->current_lock(), boost::defer_lock_t() );
                }
             }
@@ -860,6 +938,10 @@ namespace chainbase {
          vector<unique_ptr<abstract_index>>                          _index_map;
 
          bfs::path                                                   _data_dir;
+
+         int32_t                                                     _read_lock_count = 0;
+         int32_t                                                     _write_lock_count = 0;
+         bool                                                        _enable_require_locking = false;
    };
 
    template<typename Object, typename... Args>
