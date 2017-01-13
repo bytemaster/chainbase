@@ -33,11 +33,11 @@
 #endif
 
 #ifdef CHAINBASE_CHECK_LOCKING
-   #define CHAINBASE_REQUIRE_READ_LOCK(t) require_read_lock(typeid(t).name())
-   #define CHAINBASE_REQUIRE_WRITE_LOCK(t) require_write_lock(typeid(t).name())
+   #define CHAINBASE_REQUIRE_READ_LOCK(m, t) require_read_lock(m, typeid(t).name())
+   #define CHAINBASE_REQUIRE_WRITE_LOCK(m, t) require_write_lock(m, typeid(t).name())
 #else
-   #define CHAINBASE_REQUIRE_READ_LOCK(t)
-   #define CHAINBASE_REQUIRE_WRITE_LOCK(t)
+   #define CHAINBASE_REQUIRE_READ_LOCK(m, t)
+   #define CHAINBASE_REQUIRE_WRITE_LOCK(m, t)
 #endif
 
 namespace chainbase {
@@ -657,18 +657,18 @@ namespace chainbase {
          void set_require_locking( bool enable_require_locking );
 
 #ifdef CHAINBASE_CHECK_LOCKING
-         void require_lock_fail( const char* lock_type, const char* tname )const;
+         void require_lock_fail( const char* method, const char* lock_type, const char* tname )const;
 
-         void require_read_lock( const char* tname )const
+         void require_read_lock( const char* method, const char* tname )const
          {
             if( BOOST_UNLIKELY( _enable_require_locking & _read_only & (_read_lock_count <= 0) ) )
-               require_lock_fail("read", tname);
+               require_lock_fail(method, "read", tname);
          }
 
-         void require_write_lock( const char* tname )
+         void require_write_lock( const char* method, const char* tname )
          {
             if( BOOST_UNLIKELY( _enable_require_locking & (_write_lock_count <= 0) ) )
-               require_lock_fail("write", tname);
+               require_lock_fail(method, "write", tname);
          }
 #endif
 
@@ -728,7 +728,7 @@ namespace chainbase {
 
          void set_revision( uint64_t revision )
          {
-             CHAINBASE_REQUIRE_WRITE_LOCK( uint64_t );
+             CHAINBASE_REQUIRE_WRITE_LOCK( "set_revision", uint64_t );
              for( auto i : _index_list ) i->set_revision( revision );
          }
 
@@ -775,7 +775,7 @@ namespace chainbase {
          template<typename MultiIndexType>
          const generic_index<MultiIndexType>& get_index()const
          {
-            CHAINBASE_REQUIRE_READ_LOCK(typename MultiIndexType::value_type);
+            CHAINBASE_REQUIRE_READ_LOCK("get_index", typename MultiIndexType::value_type);
             typedef generic_index<MultiIndexType> index_type;
             typedef index_type*                   index_type_ptr;
             assert( _index_map.size() > index_type::value_type::type_id );
@@ -786,7 +786,7 @@ namespace chainbase {
          template<typename MultiIndexType, typename ByIndex>
          auto get_index()const -> decltype( ((generic_index<MultiIndexType>*)( nullptr ))->indicies().template get<ByIndex>() )
          {
-            CHAINBASE_REQUIRE_READ_LOCK(typename MultiIndexType::value_type);
+            CHAINBASE_REQUIRE_READ_LOCK("get_index", typename MultiIndexType::value_type);
             typedef generic_index<MultiIndexType> index_type;
             typedef index_type*                   index_type_ptr;
             assert( _index_map.size() > index_type::value_type::type_id );
@@ -797,7 +797,7 @@ namespace chainbase {
          template<typename MultiIndexType>
          generic_index<MultiIndexType>& get_mutable_index()
          {
-            CHAINBASE_REQUIRE_WRITE_LOCK(typename MultiIndexType::value_type);
+            CHAINBASE_REQUIRE_WRITE_LOCK("get_mutable_index", typename MultiIndexType::value_type);
             typedef generic_index<MultiIndexType> index_type;
             typedef index_type*                   index_type_ptr;
             assert( _index_map.size() > index_type::value_type::type_id );
@@ -808,7 +808,7 @@ namespace chainbase {
          template< typename ObjectType, typename IndexedByType, typename CompatibleKey >
          const ObjectType* find( CompatibleKey&& key )const
          {
-             CHAINBASE_REQUIRE_READ_LOCK(ObjectType);
+             CHAINBASE_REQUIRE_READ_LOCK("find", ObjectType);
              typedef typename get_index_type< ObjectType >::type index_type;
              const auto& idx = get_index< index_type >().indicies().template get< IndexedByType >();
              auto itr = idx.find( std::forward< CompatibleKey >( key ) );
@@ -819,7 +819,7 @@ namespace chainbase {
          template< typename ObjectType >
          const ObjectType* find( oid< ObjectType > key = oid< ObjectType >() ) const
          {
-             CHAINBASE_REQUIRE_READ_LOCK(ObjectType);
+             CHAINBASE_REQUIRE_READ_LOCK("find", ObjectType);
              typedef typename get_index_type< ObjectType >::type index_type;
              const auto& idx = get_index< index_type >().indices();
              auto itr = idx.find( key );
@@ -830,7 +830,7 @@ namespace chainbase {
          template< typename ObjectType, typename IndexedByType, typename CompatibleKey >
          const ObjectType& get( CompatibleKey&& key )const
          {
-             CHAINBASE_REQUIRE_READ_LOCK(ObjectType);
+             CHAINBASE_REQUIRE_READ_LOCK("get", ObjectType);
              auto obj = find< ObjectType, IndexedByType >( std::forward< CompatibleKey >( key ) );
              if( !obj ) BOOST_THROW_EXCEPTION( std::out_of_range( "unknown key" ) );
              return *obj;
@@ -839,7 +839,7 @@ namespace chainbase {
          template< typename ObjectType >
          const ObjectType& get( const oid< ObjectType >& key = oid< ObjectType >() )const
          {
-             CHAINBASE_REQUIRE_READ_LOCK(ObjectType);
+             CHAINBASE_REQUIRE_READ_LOCK("get", ObjectType);
              auto obj = find< ObjectType >( key );
              if( !obj ) BOOST_THROW_EXCEPTION( std::out_of_range( "unknown key") );
              return *obj;
@@ -848,7 +848,7 @@ namespace chainbase {
          template<typename ObjectType, typename Modifier>
          void modify( const ObjectType& obj, Modifier&& m )
          {
-             CHAINBASE_REQUIRE_WRITE_LOCK(ObjectType);
+             CHAINBASE_REQUIRE_WRITE_LOCK("modify", ObjectType);
              typedef typename get_index_type<ObjectType>::type index_type;
              get_mutable_index<index_type>().modify( obj, m );
          }
@@ -856,7 +856,7 @@ namespace chainbase {
          template<typename ObjectType>
          void remove( const ObjectType& obj )
          {
-             CHAINBASE_REQUIRE_WRITE_LOCK(ObjectType);
+             CHAINBASE_REQUIRE_WRITE_LOCK("remove", ObjectType);
              typedef typename get_index_type<ObjectType>::type index_type;
              return get_mutable_index<index_type>().remove( obj );
          }
@@ -864,7 +864,7 @@ namespace chainbase {
          template<typename ObjectType, typename Constructor>
          const ObjectType& create( Constructor&& con )
          {
-             CHAINBASE_REQUIRE_WRITE_LOCK(ObjectType);
+             CHAINBASE_REQUIRE_WRITE_LOCK("create", ObjectType);
              typedef typename get_index_type<ObjectType>::type index_type;
              return get_mutable_index<index_type>().emplace( std::forward<Constructor>(con) );
          }
