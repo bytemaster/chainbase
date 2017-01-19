@@ -52,6 +52,9 @@ namespace chainbase {
 
    typedef bip::basic_string< char, std::char_traits< char >, allocator< char > > shared_string;
 
+   template<typename T>
+   using shared_vector = std::vector<T, allocator<T> >;
+
    struct strcmp_less
    {
       bool operator()( const shared_string& a, const shared_string& b )const
