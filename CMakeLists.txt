@@ -25,6 +25,8 @@ ENDIF(WIN32)
 
 FIND_PACKAGE(Boost 1.57 REQUIRED COMPONENTS ${BOOST_COMPONENTS})
 
+SET(PLATFORM_LIBRARIES)
+
 if( APPLE )
   # Apple Specific Options Here
   message( STATUS "Configuring ChainBase on OS X" )
@@ -38,6 +40,7 @@ else( APPLE )
   if ( FULL_STATIC_BUILD )
     set( CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++ -static-libgcc")
   endif ( FULL_STATIC_BUILD )
+  LIST( APPEND PLATFORM_LIBRARIES pthread )
 endif( APPLE )
 
 if( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" )
@@ -63,7 +66,7 @@ endif()
 
 file(GLOB HEADERS "include/*.hpp")
 add_library( chainbase src/chainbase.cpp ${HEADERS} )
-target_link_libraries( chainbase  ${Boost_LIBRARIES} )
+target_link_libraries( chainbase  ${Boost_LIBRARIES} ${PLATFORM_LIBRARIES} )
 target_include_directories( chainbase PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include"  ${Boost_INCLUDE_DIR} )
 
 add_subdirectory( test )
