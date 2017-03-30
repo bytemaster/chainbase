@@ -104,7 +104,6 @@ namespace chainbase {
    {
       typedef oid<Derived> id_type;
       static const uint16_t type_id = TypeNumber;
-
    };
 
    /** this class is ment to be specified to enable lookup of index type by object type using
@@ -654,6 +653,7 @@ namespace chainbase {
          };
 
          void open( const bfs::path& dir, uint32_t write = read_only, uint64_t shared_file_size = 0 );
+         bool is_open()const;
          void close();
          void flush();
          void wipe( const bfs::path& dir );

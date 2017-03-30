@@ -105,6 +105,11 @@ namespace chainbase {
       }
    }
 
+   bool database::is_open() const
+   {
+      return _segment && _meta && !_data_dir.empty();
+   }
+
    void database::flush() {
       if( _segment )
          _segment->flush();
