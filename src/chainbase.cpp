@@ -121,6 +121,8 @@ namespace chainbase {
    {
       _segment.reset();
       _meta.reset();
+      _index_list.clear();
+      _index_map.clear();
       _data_dir = bfs::path();
    }
 
