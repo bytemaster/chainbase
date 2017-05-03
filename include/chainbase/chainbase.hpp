@@ -96,6 +96,10 @@ namespace chainbase {
          friend bool operator > ( const oid& a, const oid& b ) { return a._id > b._id; }
          friend bool operator == ( const oid& a, const oid& b ) { return a._id == b._id; }
          friend bool operator != ( const oid& a, const oid& b ) { return a._id != b._id; }
+         friend std::ostream& operator<<(std::ostream& s, const oid& id) {
+            s << boost::core::demangle(typeid(oid<T>).name()) << '(' << id._id << ')'; return s;
+         }
+
          int64_t _id = 0;
    };
 
