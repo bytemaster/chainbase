@@ -30,16 +30,14 @@ namespace chainbase {
       bool                    windows = false;
    };
 
-   void database::open( const bfs::path& dir, uint32_t flags, uint64_t shared_file_size ) {
-
+   database::database(const bfs::path& dir, open_flags flags, uint64_t shared_file_size) {
       bool write = flags & database::read_write;
 
-      if( !bfs::exists( dir ) ) {
-         if( !write ) BOOST_THROW_EXCEPTION( std::runtime_error( "database file not found at " + dir.native() ) );
+      if (!bfs::exists(dir)) {
+         if(!write) BOOST_THROW_EXCEPTION( std::runtime_error( "database file not found at " + dir.native() ) );
       }
 
-      bfs::create_directories( dir );
-      if( _data_dir != dir ) close();
+      bfs::create_directories(dir);
 
       _data_dir = dir;
       auto abs_path = bfs::absolute( dir / "shared_memory.bin" );
@@ -105,9 +103,13 @@ namespace chainbase {
       }
    }
 
-   bool database::is_open() const
+   database::~database()
    {
-      return _segment && _meta && !_data_dir.empty();
+      _segment.reset();
+      _meta.reset();
+      _index_list.clear();
+      _index_map.clear();
+      _data_dir = bfs::path();
    }
 
    void database::flush() {
@@ -115,26 +117,6 @@ namespace chainbase {
          _segment->flush();
       if( _meta )
          _meta->flush();
-   }
-
-   void database::close()
-   {
-      _segment.reset();
-      _meta.reset();
-      _index_list.clear();
-      _index_map.clear();
-      _data_dir = bfs::path();
-   }
-
-   void database::wipe( const bfs::path& dir )
-   {
-      _segment.reset();
-      _meta.reset();
-      bfs::remove_all( dir / "shared_memory.bin" );
-      bfs::remove_all( dir / "shared_memory.meta" );
-      _data_dir = bfs::path();
-      _index_list.clear();
-      _index_map.clear();
    }
 
    void database::set_require_locking( bool enable_require_locking )

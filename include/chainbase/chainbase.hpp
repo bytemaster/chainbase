@@ -656,11 +656,12 @@ namespace chainbase {
             read_write    = 1
          };
 
-         void open( const bfs::path& dir, uint32_t write = read_only, uint64_t shared_file_size = 0 );
-         bool is_open()const;
-         void close();
+         database(const bfs::path& dir, open_flags write = read_only, uint64_t shared_file_size = 0);
+         ~database();
+         database(database&&) = default;
+         database& operator=(database&&) = default;
+         bool is_read_only() const { return _read_only; }
          void flush();
-         void wipe( const bfs::path& dir );
          void set_require_locking( bool enable_require_locking );
 
 #ifdef CHAINBASE_CHECK_LOCKING
