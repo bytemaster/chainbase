@@ -880,7 +880,7 @@ namespace chainbase {
          }
 
          template< typename Lambda >
-         auto with_read_lock( Lambda&& callback, uint64_t wait_micro = 1000000 ) -> decltype( (*(Lambda*)nullptr)() )
+         auto with_read_lock( Lambda&& callback, uint64_t wait_micro = 1000000 ) const -> decltype( (*(Lambda*)nullptr)() )
          {
             read_lock lock( _rw_manager->current_lock(), bip::defer_lock_type() );
 #ifdef CHAINBASE_CHECK_LOCKING
