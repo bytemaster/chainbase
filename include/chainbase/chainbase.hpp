@@ -96,6 +96,10 @@ namespace chainbase {
          friend bool operator > ( const oid& a, const oid& b ) { return a._id > b._id; }
          friend bool operator == ( const oid& a, const oid& b ) { return a._id == b._id; }
          friend bool operator != ( const oid& a, const oid& b ) { return a._id != b._id; }
+         friend std::ostream& operator<<(std::ostream& s, const oid& id) {
+            s << boost::core::demangle(typeid(oid<T>).name()) << '(' << id._id << ')'; return s;
+         }
+
          int64_t _id = 0;
    };
 
@@ -652,11 +656,12 @@ namespace chainbase {
             read_write    = 1
          };
 
-         void open( const bfs::path& dir, uint32_t write = read_only, uint64_t shared_file_size = 0 );
-         bool is_open()const;
-         void close();
+         database(const bfs::path& dir, open_flags write = read_only, uint64_t shared_file_size = 0);
+         ~database();
+         database(database&&) = default;
+         database& operator=(database&&) = default;
+         bool is_read_only() const { return _read_only; }
          void flush();
-         void wipe( const bfs::path& dir );
          void set_require_locking( bool enable_require_locking );
 
 #ifdef CHAINBASE_CHECK_LOCKING
@@ -835,7 +840,8 @@ namespace chainbase {
          {
              CHAINBASE_REQUIRE_READ_LOCK("get", ObjectType);
              auto obj = find< ObjectType, IndexedByType >( std::forward< CompatibleKey >( key ) );
-             if( !obj ) BOOST_THROW_EXCEPTION( std::out_of_range( "unknown key" ) );
+             if( !obj )
+                BOOST_THROW_EXCEPTION( std::out_of_range( "unknown key" ) );
              return *obj;
          }
 
@@ -844,7 +850,8 @@ namespace chainbase {
          {
              CHAINBASE_REQUIRE_READ_LOCK("get", ObjectType);
              auto obj = find< ObjectType >( key );
-             if( !obj ) BOOST_THROW_EXCEPTION( std::out_of_range( "unknown key") );
+             if( !obj )
+                BOOST_THROW_EXCEPTION( std::out_of_range( "unknown key") );
              return *obj;
          }
 
@@ -873,7 +880,7 @@ namespace chainbase {
          }
 
          template< typename Lambda >
-         auto with_read_lock( Lambda&& callback, uint64_t wait_micro = 1000000 ) -> decltype( (*(Lambda*)nullptr)() )
+         auto with_read_lock( Lambda&& callback, uint64_t wait_micro = 1000000 ) const -> decltype( (*(Lambda*)nullptr)() )
          {
             read_lock lock( _rw_manager->current_lock(), bip::defer_lock_type() );
 #ifdef CHAINBASE_CHECK_LOCKING
