@@ -9,8 +9,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 SET(BOOST_COMPONENTS)
 LIST(APPEND BOOST_COMPONENTS thread
                              date_time
-                             system
                              filesystem
+                             system
                              chrono
                              unit_test_framework
                              locale)
