@@ -69,7 +69,8 @@ namespace chainbase {
          }
       } else {
          _segment.reset( new bip::managed_mapped_file( bip::create_only,
-                                                       abs_path.generic_string().c_str(), shared_file_size
+                                                       abs_path.generic_string().c_str(), shared_file_size,
+                                                       0, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH
                                                        ) );
          _segment->find_or_construct< environment_check >( "environment" )();
       }
@@ -89,7 +90,8 @@ namespace chainbase {
       else
       {
          _meta.reset( new bip::managed_mapped_file( bip::create_only,
-                                                    abs_path.generic_string().c_str(), sizeof( read_write_mutex_manager ) * 2
+                                                    abs_path.generic_string().c_str(), sizeof( read_write_mutex_manager ) * 2,
+                                                    0, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH
                                                     ) );
 
          _rw_manager = _meta->find_or_construct< read_write_mutex_manager >( "rw_manager" )();

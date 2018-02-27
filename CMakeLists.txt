@@ -74,8 +74,8 @@ add_subdirectory( test )
 install( TARGETS
    chainbase
 
-   RUNTIME DESTINATION bin
-   LIBRARY DESTINATION lib
-   ARCHIVE DESTINATION lib
+   RUNTIME DESTINATION usr/bin
+   LIBRARY DESTINATION usr/lib
+   ARCHIVE DESTINATION usr/lib
 )
 install( FILES ${HEADERS} DESTINATION "include/chainbase" )
