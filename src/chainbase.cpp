@@ -18,16 +18,18 @@ namespace chainbase {
 #ifdef WIN32
          windows = true;
 #endif
+         boost_version = BOOST_VERSION;
       }
       friend bool operator == ( const environment_check& a, const environment_check& b ) {
-         return std::make_tuple( a.compiler_version, a.debug, a.apple, a.windows )
-            ==  std::make_tuple( b.compiler_version, b.debug, b.apple, b.windows );
+         return std::make_tuple( a.compiler_version, a.debug, a.apple, a.windows, a.boost_version )
+            ==  std::make_tuple( b.compiler_version, b.debug, b.apple, b.windows, b.boost_version );
       }
 
       boost::array<char,256>  compiler_version;
       bool                    debug = false;
       bool                    apple = false;
       bool                    windows = false;
+      uint32_t                boost_version;
    };
 
    database::database(const bfs::path& dir, open_flags flags, uint64_t shared_file_size) {
@@ -65,7 +67,7 @@ namespace chainbase {
 
          auto env = _segment->find< environment_check >( "environment" );
          if( !env.first || !( *env.first == environment_check()) ) {
-            BOOST_THROW_EXCEPTION( std::runtime_error( "database created by a different compiler, build, or operating system" ) );
+            BOOST_THROW_EXCEPTION( std::runtime_error( "database created by a different compiler, build, boost version, or operating system" ) );
          }
       } else {
          _segment.reset( new bip::managed_mapped_file( bip::create_only,
