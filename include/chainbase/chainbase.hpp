@@ -55,6 +55,8 @@ namespace chainbase {
    template<typename T>
    using shared_vector = std::vector<T, allocator<T> >;
 
+   constexpr char _db_dirty_flag_string[] = "db_dirty_flag";
+
    struct strcmp_less
    {
       bool operator()( const shared_string& a, const shared_string& b )const
