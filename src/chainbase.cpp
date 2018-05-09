@@ -101,14 +101,37 @@ namespace chainbase {
 
       if( write )
       {
+         bool* db_is_dirty = _segment->get_segment_manager()->find_or_construct<bool>(_db_dirty_flag_string)(false);
+         if(*db_is_dirty)
+            BOOST_THROW_EXCEPTION( std::runtime_error( "database dirty flag set (likely due to unclean shutdown) replay or resync required" ) );
+         bool* meta_is_dirty = _meta->get_segment_manager()->find_or_construct<bool>(_db_dirty_flag_string)(false);
+         if(*meta_is_dirty)
+            BOOST_THROW_EXCEPTION( std::runtime_error( "database metadata dirty flag set (likely due to unclean shutdown) replay or resync required" ) );
+
          _flock = bip::file_lock( abs_path.generic_string().c_str() );
          if( !_flock.try_lock() )
             BOOST_THROW_EXCEPTION( std::runtime_error( "could not gain write access to the shared memory file" ) );
+
+         *db_is_dirty = *meta_is_dirty = true;
+#ifdef _WIN32
+#warning Safe database dirty handling not implemented on WIN32
+#else
+         msync(_segment->get_address(), _segment->get_size(), MS_SYNC);
+         msync(_meta->get_address(), _meta->get_size(), MS_SYNC);
+#endif
       }
    }
 
    database::~database()
    {
+      if(!_read_only) {
+#ifndef _WIN32
+         msync(_segment->get_address(), _segment->get_size(), MS_SYNC);
+         msync(_meta->get_address(), _meta->get_size(), MS_SYNC);
+#endif
+         *_segment->get_segment_manager()->find<bool>(_db_dirty_flag_string).first = false;
+         *_meta->get_segment_manager()->find<bool>(_db_dirty_flag_string).first = false;
+      }
       _segment.reset();
       _meta.reset();
       _index_list.clear();
