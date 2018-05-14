@@ -658,6 +658,8 @@ namespace chainbase {
             read_write    = 1
          };
 
+         using database_index_row_count_multiset = std::multiset<std::pair<unsigned, std::string>>;
+
          database(const bfs::path& dir, open_flags write = read_only, uint64_t shared_file_size = 0);
          ~database();
          database(database&&) = default;
@@ -764,6 +766,10 @@ namespace chainbase {
              }
 
              idx_ptr->validate();
+
+             _db_multi_index_row_count_functors.push_back([idx_ptr, type_name](database_index_row_count_multiset& multiset) {
+                multiset.emplace(make_pair(idx_ptr->indices().size(), type_name));
+             });
 
              if( type_id >= _index_map.size() )
                 _index_map.resize( type_id + 1 );
@@ -933,6 +939,13 @@ namespace chainbase {
             return callback();
          }
 
+         database_index_row_count_multiset row_count_per_index() {
+            database_index_row_count_multiset ret;
+            for(auto& f : _db_multi_index_row_count_functors)
+               f(ret);
+            return ret;
+         }
+
       private:
          unique_ptr<bip::managed_mapped_file>                        _segment;
          unique_ptr<bip::managed_mapped_file>                        _meta;
@@ -955,6 +968,8 @@ namespace chainbase {
          int32_t                                                     _read_lock_count = 0;
          int32_t                                                     _write_lock_count = 0;
          bool                                                        _enable_require_locking = false;
+
+         vector<std::function<void(database_index_row_count_multiset&)>>  _db_multi_index_row_count_functors;
    };
 
    template<typename Object, typename... Args>
