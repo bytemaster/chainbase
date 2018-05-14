@@ -578,6 +578,8 @@ namespace chainbase {
          virtual void    commit( int64_t revision )const = 0;
          virtual void    undo_all()const = 0;
          virtual uint32_t type_id()const  = 0;
+         virtual uint64_t row_count()const = 0;
+         virtual const std::string& type_name()const = 0;
 
          virtual void remove_object( int64_t id ) = 0;
 
@@ -602,10 +604,13 @@ namespace chainbase {
          virtual void     commit( int64_t revision )const  override { _base.commit(revision); }
          virtual void     undo_all() const override {_base.undo_all(); }
          virtual uint32_t type_id()const override { return BaseIndex::value_type::type_id; }
+         virtual uint64_t row_count()const override { return _base.indicies().size(); }
+         virtual const std::string& type_name() const override { return BaseIndex_name; }
 
          virtual void     remove_object( int64_t id ) override { return _base.remove_object( id ); }
       private:
          BaseIndex& _base;
+         std::string BaseIndex_name = boost::core::demangle( typeid( typename BaseIndex::value_type ).name() );
    };
 
    template<typename IndexType>
@@ -657,6 +662,8 @@ namespace chainbase {
             read_only     = 0,
             read_write    = 1
          };
+
+         using database_index_row_count_multiset = std::multiset<std::pair<unsigned, std::string>>;
 
          database(const bfs::path& dir, open_flags write = read_only, uint64_t shared_file_size = 0);
          ~database();
@@ -931,6 +938,16 @@ namespace chainbase {
             }
 
             return callback();
+         }
+
+         database_index_row_count_multiset row_count_per_index() {
+            database_index_row_count_multiset ret;
+            for(const auto& ai_ptr : _index_map) {
+               if(!ai_ptr)
+                  continue;
+               ret.emplace(make_pair(ai_ptr->row_count(), ai_ptr->type_name()));
+            }
+            return ret;
          }
 
       private:
