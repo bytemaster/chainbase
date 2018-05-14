@@ -303,7 +303,7 @@ namespace chainbase {
             }
          }
 
-         const index_type& indicies()const { return _indices; }
+         const index_type& indices()const { return _indices; }
          int64_t revision()const { return _revision; }
 
 
@@ -794,14 +794,14 @@ namespace chainbase {
          }
 
          template<typename MultiIndexType, typename ByIndex>
-         auto get_index()const -> decltype( ((generic_index<MultiIndexType>*)( nullptr ))->indicies().template get<ByIndex>() )
+         auto get_index()const -> decltype( ((generic_index<MultiIndexType>*)( nullptr ))->indices().template get<ByIndex>() )
          {
             CHAINBASE_REQUIRE_READ_LOCK("get_index", typename MultiIndexType::value_type);
             typedef generic_index<MultiIndexType> index_type;
             typedef index_type*                   index_type_ptr;
             assert( _index_map.size() > index_type::value_type::type_id );
             assert( _index_map[index_type::value_type::type_id] );
-            return index_type_ptr( _index_map[index_type::value_type::type_id]->get() )->indicies().template get<ByIndex>();
+            return index_type_ptr( _index_map[index_type::value_type::type_id]->get() )->indices().template get<ByIndex>();
          }
 
          template<typename MultiIndexType>
@@ -820,7 +820,7 @@ namespace chainbase {
          {
              CHAINBASE_REQUIRE_READ_LOCK("find", ObjectType);
              typedef typename get_index_type< ObjectType >::type index_type;
-             const auto& idx = get_index< index_type >().indicies().template get< IndexedByType >();
+             const auto& idx = get_index< index_type >().indices().template get< IndexedByType >();
              auto itr = idx.find( std::forward< CompatibleKey >( key ) );
              if( itr == idx.end() ) return nullptr;
              return &*itr;
@@ -941,7 +941,7 @@ namespace chainbase {
          bip::file_lock                                              _flock;
 
          /**
-          * This is a sparse list of known indicies kept to accelerate creation of undo sessions
+          * This is a sparse list of known indices kept to accelerate creation of undo sessions
           */
          vector<abstract_index*>                                     _index_list;
 
