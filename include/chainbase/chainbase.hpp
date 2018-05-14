@@ -303,9 +303,7 @@ namespace chainbase {
             }
          }
 
-         const index_type& indices()const { return _indices; }
          int64_t revision()const { return _revision; }
-
 
          /**
           *  Restores the state to how it was prior to the current session discarding all changes
@@ -604,7 +602,7 @@ namespace chainbase {
          virtual void     commit( int64_t revision )const  override { _base.commit(revision); }
          virtual void     undo_all() const override {_base.undo_all(); }
          virtual uint32_t type_id()const override { return BaseIndex::value_type::type_id; }
-         virtual uint64_t row_count()const override { return _base.indicies().size(); }
+         virtual uint64_t row_count()const override { return _base.indices().size(); }
          virtual const std::string& type_name() const override { return BaseIndex_name; }
 
          virtual void     remove_object( int64_t id ) override { return _base.remove_object( id ); }
