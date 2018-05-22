@@ -32,7 +32,7 @@ namespace chainbase {
       uint32_t                boost_version;
    };
 
-   database::database(const bfs::path& dir, open_flags flags, uint64_t shared_file_size) {
+   database::database(const bfs::path& dir, open_flags flags, uint64_t shared_file_size, bool allow_dirty ) {
       bool write = flags & database::read_write;
 
       if (!bfs::exists(dir)) {
@@ -102,10 +102,10 @@ namespace chainbase {
       if( write )
       {
          bool* db_is_dirty = _segment->get_segment_manager()->find_or_construct<bool>(_db_dirty_flag_string)(false);
-         if(*db_is_dirty)
+         if(!allow_dirty && *db_is_dirty)
             BOOST_THROW_EXCEPTION( std::runtime_error( "database dirty flag set (likely due to unclean shutdown) replay or resync required" ) );
          bool* meta_is_dirty = _meta->get_segment_manager()->find_or_construct<bool>(_db_dirty_flag_string)(false);
-         if(*meta_is_dirty)
+         if(!allow_dirty && *meta_is_dirty)
             BOOST_THROW_EXCEPTION( std::runtime_error( "database metadata dirty flag set (likely due to unclean shutdown) replay or resync required" ) );
 
          _flock = bip::file_lock( abs_path.generic_string().c_str() );
