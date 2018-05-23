@@ -115,9 +115,9 @@ namespace chainbase {
          BOOST_THROW_EXCEPTION( std::runtime_error( "could not find dirty flag in shared memory" ) );
 
       if( !allow_dirty && *db_is_dirty )
-         BOOST_THROW_EXCEPTION( std::runtime_error( "database dirty flag set (likely due to unclean shutdown) replay or resync required" ) );
+         throw std::runtime_error( "database dirty flag set" );
       if( !allow_dirty && *meta_is_dirty )
-         BOOST_THROW_EXCEPTION( std::runtime_error( "database metadata dirty flag set (likely due to unclean shutdown) replay or resync required" ) );
+         throw std::runtime_error( "database metadata dirty flag set" );
 
       if( write ) {
          _flock = bip::file_lock( abs_path.generic_string().c_str() );
