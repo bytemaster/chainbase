@@ -77,6 +77,8 @@ namespace chainbase {
                                                        0, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH
                                                        ) );
          _segment->find_or_construct< environment_check >( "environment" )();
+
+#ifndef _WIN32
          int r = mlock( _segment->get_address(), _segment->get_size() );
          if (r != 0 ) {
             //we cannot use fc library here, which means that this message doesn't go to graylog even if you have configure it
@@ -86,6 +88,7 @@ namespace chainbase {
             std::cerr << "CHAINBASE:   Failed to lock chainbase in RAM: " << std::strerror(errno) << std::endl
                       << "CHAINBASE:   Performance degradation is possible" << std::endl;
          }
+#endif
       }
 
 
