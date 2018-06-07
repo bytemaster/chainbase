@@ -44,13 +44,8 @@ BOOST_AUTO_TEST_CASE( open_and_create ) {
    try {
       std::cerr << temp.native() << " \n";
 
-      chainbase::database db;
-      BOOST_CHECK_THROW( db.open( temp ), std::runtime_error ); /// temp does not exist
-
-      db.open( temp, database::read_write, 1024*1024*8 );
-
-      chainbase::database db2; /// open an already created db
-      db2.open( temp );
+      chainbase::database db(temp, database::read_write, 1024*1024*8);
+      chainbase::database db2(temp); /// open an already created db
       BOOST_CHECK_THROW( db2.add_index< book_index >(), std::runtime_error ); /// index does not exist in read only database
 
       db.add_index< book_index >();

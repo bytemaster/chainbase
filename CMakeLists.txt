@@ -9,8 +9,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 SET(BOOST_COMPONENTS)
 LIST(APPEND BOOST_COMPONENTS thread
                              date_time
-                             system
                              filesystem
+                             system
                              chrono
                              unit_test_framework
                              locale)
@@ -64,18 +64,9 @@ if(ENABLE_COVERAGE_TESTING)
 endif()
 
 
-file(GLOB HEADERS "include/*.hpp")
+file(GLOB HEADERS "include/chainbase/*.hpp")
 add_library( chainbase src/chainbase.cpp ${HEADERS} )
 target_link_libraries( chainbase  ${Boost_LIBRARIES} ${PLATFORM_LIBRARIES} )
 target_include_directories( chainbase PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include"  ${Boost_INCLUDE_DIR} )
 
 add_subdirectory( test )
-
-install( TARGETS
-   chainbase
-
-   RUNTIME DESTINATION bin
-   LIBRARY DESTINATION lib
-   ARCHIVE DESTINATION lib
-)
-install( FILES ${HEADERS} DESTINATION "include/" )
