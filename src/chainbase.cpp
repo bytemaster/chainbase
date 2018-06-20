@@ -68,7 +68,42 @@ namespace chainbase {
          }
 
          auto env = _segment->find< environment_check >( "environment" );
-         if( !env.first || !( *env.first == environment_check()) ) {
+         auto host_env = environment_check();
+         if( !env.first || !( *env.first == host_env ) ) {
+            std::cerr << "database created by a different compiler, build, boost version, or operating system\n"
+                      << "Environment differences (host vs database):"
+                      << "\n Compiler Version: \n"
+                      <<   "                   " << std::hex;
+            for( uint32_t i = 0; i < 256; ++i ) {
+               char b = *(host_env.compiler_version.data() + i);
+               std::cerr << (uint16_t)b;
+            }
+            std::cerr << " \"";
+            for( uint32_t i = 0; i < 256; ++i ) {
+               char b = *(host_env.compiler_version.data() + i);
+               if( !b ) break;
+               std::cerr << b;
+            }
+            std::cerr << " \"";
+            std::cerr << "\n                   vs\n"
+                      <<   "                   ";
+            for( uint32_t i = 0; i < 256; ++i ) {
+               char b = *(env.first->compiler_version.data() + i);
+               std::cerr << (uint16_t)b;
+            }
+            std::cerr << " \"";
+            for( uint32_t i = 0; i < 256; ++i ) {
+               char b = *(env.first->compiler_version.data() + i);
+               if( !b ) break;
+               std::cerr << b;
+            }
+            std::cerr << " \"" << std::dec;
+            std::cerr << "\n Debug: " << host_env.debug << " vs " << env.first->debug
+                      << "\n Apple: " << host_env.apple << " vs " << env.first->apple
+                      << "\n Windows: " << host_env.windows << " vs " << env.first->windows
+                      << "\n Boost Version: " << host_env.boost_version << " vs " << env.first->boost_version
+                      << std::endl;
+
             BOOST_THROW_EXCEPTION( std::runtime_error( "database created by a different compiler, build, boost version, or operating system" ) );
          }
       } else {
