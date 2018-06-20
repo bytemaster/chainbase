@@ -970,6 +970,8 @@ namespace chainbase {
          int32_t                                                     _read_lock_count = 0;
          int32_t                                                     _write_lock_count = 0;
          bool                                                        _enable_require_locking = false;
+
+         void                                                        _msync_database();
    };
 
    template<typename Object, typename... Args>

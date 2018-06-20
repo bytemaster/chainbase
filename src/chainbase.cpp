@@ -139,24 +139,17 @@ namespace chainbase {
             BOOST_THROW_EXCEPTION( std::runtime_error( "could not gain write access to the shared memory file" ) );
 
          *db_is_dirty = *meta_is_dirty = true;
-#ifdef _WIN32
-#warning Safe database dirty handling not implemented on WIN32
-#else
-         msync(_segment->get_address(), _segment->get_size(), MS_SYNC);
-         msync(_meta->get_address(), _meta->get_size(), MS_SYNC);
-#endif
+         _msync_database();
       }
    }
 
    database::~database()
    {
       if(!_read_only) {
-#ifndef _WIN32
-         msync(_segment->get_address(), _segment->get_size(), MS_SYNC);
-         msync(_meta->get_address(), _meta->get_size(), MS_SYNC);
-#endif
+         _msync_database();
          *_segment->get_segment_manager()->find<bool>(_db_dirty_flag_string).first = false;
          *_meta->get_segment_manager()->find<bool>(_db_dirty_flag_string).first = false;
+         _msync_database();
       }
       _segment.reset();
       _meta.reset();
@@ -170,6 +163,15 @@ namespace chainbase {
          _segment->flush();
       if( _meta )
          _meta->flush();
+   }
+
+   void database::_msync_database() {
+#ifdef _WIN32
+#warning Safe database dirty handling not implemented on WIN32
+#else
+         msync(_segment->get_address(), _segment->get_size(), MS_SYNC);
+         msync(_meta->get_address(), _meta->get_size(), MS_SYNC);
+#endif
    }
 
    void database::set_require_locking( bool enable_require_locking )
