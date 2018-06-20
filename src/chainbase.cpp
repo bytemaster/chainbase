@@ -169,8 +169,10 @@ namespace chainbase {
 #ifdef _WIN32
 #warning Safe database dirty handling not implemented on WIN32
 #else
-         msync(_segment->get_address(), _segment->get_size(), MS_SYNC);
-         msync(_meta->get_address(), _meta->get_size(), MS_SYNC);
+         if(msync(_segment->get_address(), _segment->get_size(), MS_SYNC))
+            perror("Failed to msync DB file");
+         if(msync(_meta->get_address(), _meta->get_size(), MS_SYNC))
+            perror("Failed to msync DB metadata file");
 #endif
    }
 
