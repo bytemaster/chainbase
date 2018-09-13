@@ -847,8 +847,11 @@ namespace chainbase {
          {
              CHAINBASE_REQUIRE_READ_LOCK("get", ObjectType);
              auto obj = find< ObjectType, IndexedByType >( std::forward< CompatibleKey >( key ) );
-             if( !obj )
-                BOOST_THROW_EXCEPTION( std::out_of_range( "unknown key" ) );
+            if( !obj ) {
+               std::stringstream ss;
+               ss << "unknown key (" << boost::core::demangle( typeid( key ).name() ) << "): " << key;
+               BOOST_THROW_EXCEPTION( std::out_of_range( ss.str().c_str() ) );
+            }
              return *obj;
          }
 
@@ -857,8 +860,11 @@ namespace chainbase {
          {
              CHAINBASE_REQUIRE_READ_LOCK("get", ObjectType);
              auto obj = find< ObjectType >( key );
-             if( !obj )
-                BOOST_THROW_EXCEPTION( std::out_of_range( "unknown key") );
+            if( !obj ) {
+               std::stringstream ss;
+               ss << "unknown key (" << boost::core::demangle( typeid( key ).name() ) << "): " << key._id;
+               BOOST_THROW_EXCEPTION( std::out_of_range( ss.str().c_str() ) );
+            }
              return *obj;
          }
 
