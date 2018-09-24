@@ -481,6 +481,18 @@ namespace chainbase {
             remove( *val );
          }
 
+         std::pair<int64_t, int64_t> undo_stack_revision_range()const {
+            int64_t begin = -1;
+            int64_t end   = -1;
+
+            if( _stack.size() > 0 ) {
+               begin = _stack.front().revision;
+               end   = _stack.back().revision;
+            }
+
+            return {begin, end};
+         }
+
       private:
          bool enabled()const { return _stack.size(); }
 
@@ -582,6 +594,7 @@ namespace chainbase {
          virtual uint32_t type_id()const  = 0;
          virtual uint64_t row_count()const = 0;
          virtual const std::string& type_name()const = 0;
+         virtual std::pair<int64_t, int64_t> undo_stack_revision_range()const = 0;
 
          virtual void remove_object( int64_t id ) = 0;
 
@@ -608,6 +621,7 @@ namespace chainbase {
          virtual uint32_t type_id()const override { return BaseIndex::value_type::type_id; }
          virtual uint64_t row_count()const override { return _base.indices().size(); }
          virtual const std::string& type_name() const override { return BaseIndex_name; }
+         virtual std::pair<int64_t, int64_t> undo_stack_revision_range()const override { return _base.undo_stack_revision_range(); }
 
          virtual void     remove_object( int64_t id ) override { return _base.remove_object( id ); }
       private:
@@ -773,6 +787,39 @@ namespace chainbase {
              }
 
              idx_ptr->validate();
+
+            // Ensure the undo stack of added index is consistent with the other indices in the database
+            if( _index_list.size() > 0 ) {
+               auto expected_revision_range = _index_list.front()->undo_stack_revision_range();
+               auto added_index_revision_range = idx_ptr->undo_stack_revision_range();
+
+               if( added_index_revision_range.first != expected_revision_range.first ||
+                   added_index_revision_range.second != expected_revision_range.second ) {
+
+                  if( added_index_revision_range.first >= 0 && idx_ptr->revision() != added_index_revision_range.second ) {
+                     BOOST_THROW_EXCEPTION( std::logic_error( "index for " + type_name + " has an undo stack that is inconsistent with its revision" ) );
+                  }
+
+                  if( added_index_revision_range.second > expected_revision_range.second ) {
+                     BOOST_THROW_EXCEPTION( std::logic_error( "cannot add index for " + type_name + " since it has later undo states than the already added indices in the database; change order in which indices are added" ) );
+                  }
+
+                  if( _read_only ) {
+                     BOOST_THROW_EXCEPTION( std::logic_error( "index for " + type_name + " requires an undo stack that is consistent with other indices in the database; cannot fix in read-only mode" ) );
+                  }
+
+                  idx_ptr->commit( expected_revision_range.first );
+                  added_index_revision_range = idx_ptr->undo_stack_revision_range();
+
+                  if( added_index_revision_range.first < 0 ) {
+                     idx_ptr->set_revision( expected_revision_range.first );
+                  }
+
+                  while( idx_ptr->revision() < expected_revision_range.second ) {
+                     idx_ptr->start_undo_session(true).push();
+                  }
+               }
+            }
 
              if( type_id >= _index_map.size() )
                 _index_map.resize( type_id + 1 );
@@ -987,4 +1034,3 @@ namespace chainbase {
    template<typename Object, typename... Args>
    using shared_multi_index_container = boost::multi_index_container<Object,Args..., chainbase::allocator<Object> >;
 }  // namepsace chainbase
-
