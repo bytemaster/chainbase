@@ -768,25 +768,27 @@ namespace chainbase {
 
          template<typename MultiIndexType>
          void add_index() {
-             const uint16_t type_id = generic_index<MultiIndexType>::value_type::type_id;
-             typedef generic_index<MultiIndexType>          index_type;
-             typedef typename index_type::allocator_type    index_alloc;
+            const uint16_t type_id = generic_index<MultiIndexType>::value_type::type_id;
+            typedef generic_index<MultiIndexType>          index_type;
+            typedef typename index_type::allocator_type    index_alloc;
 
-             std::string type_name = boost::core::demangle( typeid( typename index_type::value_type ).name() );
+            std::string type_name = boost::core::demangle( typeid( typename index_type::value_type ).name() );
 
-             if( !( _index_map.size() <= type_id || _index_map[ type_id ] == nullptr ) ) {
-                BOOST_THROW_EXCEPTION( std::logic_error( type_name + "::type_id is already in use" ) );
+            if( !( _index_map.size() <= type_id || _index_map[ type_id ] == nullptr ) ) {
+               BOOST_THROW_EXCEPTION( std::logic_error( type_name + "::type_id is already in use" ) );
+            }
+
+            index_type* idx_ptr = _segment->find< index_type >( type_name.c_str() ).first;
+            bool first_time_adding = false;
+            if( !idx_ptr ) {
+               if( _read_only ) {
+                  BOOST_THROW_EXCEPTION( std::runtime_error( "unable to find index for " + type_name + " in read only database" ) );
+               }
+               first_time_adding = true;
+               idx_ptr = _segment->construct< index_type >( type_name.c_str() )( index_alloc( _segment->get_segment_manager() ) );
              }
 
-             index_type* idx_ptr =  nullptr;
-             if( !_read_only ) {
-                idx_ptr = _segment->find_or_construct< index_type >( type_name.c_str() )( index_alloc( _segment->get_segment_manager() ) );
-             } else {
-                idx_ptr = _segment->find< index_type >( type_name.c_str() ).first;
-                if( !idx_ptr ) BOOST_THROW_EXCEPTION( std::runtime_error( "unable to find index for " + type_name + " in read only database" ) );
-             }
-
-             idx_ptr->validate();
+            idx_ptr->validate();
 
             // Ensure the undo stack of added index is consistent with the other indices in the database
             if( _index_list.size() > 0 ) {
@@ -796,37 +798,29 @@ namespace chainbase {
                if( added_index_revision_range.first != expected_revision_range.first ||
                    added_index_revision_range.second != expected_revision_range.second ) {
 
-                  if( added_index_revision_range.first >= 0 && idx_ptr->revision() != added_index_revision_range.second ) {
-                     BOOST_THROW_EXCEPTION( std::logic_error( "index for " + type_name + " has an undo stack that is inconsistent with its revision" ) );
+                  if( !first_time_adding ) {
+                     BOOST_THROW_EXCEPTION( std::logic_error(
+                        "existing index for " + type_name + " has an undo stack (revision range [" +
+                        std::to_string(added_index_revision_range.first) + ", " + std::to_string(added_index_revision_range.second) +
+                        "]) that is inconsistent with other indices in the database (revision range [" +
+                        std::to_string(expected_revision_range.first) + ", " + std::to_string(expected_revision_range.second) +
+                        "]); corrupted database?"
+                     ) );
                   }
 
-                  if( added_index_revision_range.second > expected_revision_range.second ) {
-                     BOOST_THROW_EXCEPTION( std::logic_error( "cannot add index for " + type_name + " since it has later undo states than the already added indices in the database; change order in which indices are added" ) );
-                  }
-
-                  if( _read_only ) {
-                     BOOST_THROW_EXCEPTION( std::logic_error( "index for " + type_name + " requires an undo stack that is consistent with other indices in the database; cannot fix in read-only mode" ) );
-                  }
-
-                  idx_ptr->commit( expected_revision_range.first );
-                  added_index_revision_range = idx_ptr->undo_stack_revision_range();
-
-                  if( added_index_revision_range.first < 0 ) {
-                     idx_ptr->set_revision( expected_revision_range.first );
-                  }
-
+                  idx_ptr->set_revision( expected_revision_range.first );
                   while( idx_ptr->revision() < expected_revision_range.second ) {
                      idx_ptr->start_undo_session(true).push();
                   }
                }
             }
 
-             if( type_id >= _index_map.size() )
-                _index_map.resize( type_id + 1 );
+            if( type_id >= _index_map.size() )
+               _index_map.resize( type_id + 1 );
 
-             auto new_index = new index<index_type>( *idx_ptr );
-             _index_map[ type_id ].reset( new_index );
-             _index_list.push_back( new_index );
+            auto new_index = new index<index_type>( *idx_ptr );
+            _index_map[ type_id ].reset( new_index );
+            _index_list.push_back( new_index );
          }
 
          auto get_segment_manager() -> decltype( ((bip::managed_mapped_file*)nullptr)->get_segment_manager()) {
