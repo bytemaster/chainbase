@@ -808,6 +808,13 @@ namespace chainbase {
                      ) );
                   }
 
+                  if( _read_only ) {
+                     BOOST_THROW_EXCEPTION( std::logic_error(
+                        "new index for " + type_name +
+                        " requires an undo stack that is consistent with other indices in the database; cannot fix in read-only mode"
+                     ) );
+                  }
+
                   idx_ptr->set_revision( expected_revision_range.first );
                   while( idx_ptr->revision() < expected_revision_range.second ) {
                      idx_ptr->start_undo_session(true).push();
