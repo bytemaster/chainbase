@@ -833,6 +833,10 @@ namespace chainbase {
             return _segment->get_segment_manager();
          }
 
+         auto get_segment_manager()const -> std::add_const_t< decltype( ((bip::managed_mapped_file*)nullptr)->get_segment_manager() ) > {
+            return _segment->get_segment_manager();
+         }
+
          size_t get_free_memory()const
          {
             return _segment->get_segment_manager()->get_free_memory();
@@ -995,7 +999,7 @@ namespace chainbase {
             return callback();
          }
 
-         database_index_row_count_multiset row_count_per_index() {
+         database_index_row_count_multiset row_count_per_index()const {
             database_index_row_count_multiset ret;
             for(const auto& ai_ptr : _index_map) {
                if(!ai_ptr)
