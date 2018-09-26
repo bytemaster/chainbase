@@ -471,8 +471,13 @@ namespace chainbase {
 
          void set_revision( uint64_t revision )
          {
-            if( _stack.size() != 0 ) BOOST_THROW_EXCEPTION( std::logic_error("cannot set revision while there is an existing undo stack") );
-            _revision = revision;
+            if( _stack.size() != 0 )
+               BOOST_THROW_EXCEPTION( std::logic_error("cannot set revision while there is an existing undo stack") );
+
+            if( revision > std::numeric_limits<int64_t>::max() )
+               BOOST_THROW_EXCEPTION( std::logic_error("revision to set is too high") );
+
+            _revision = static_cast<int64_t>(revision);
          }
 
          void remove_object( int64_t id )
@@ -483,11 +488,11 @@ namespace chainbase {
          }
 
          std::pair<int64_t, int64_t> undo_stack_revision_range()const {
-            int64_t begin = -1;
-            int64_t end   = -1;
+            int64_t begin = _revision;
+            int64_t end   = _revision;
 
             if( _stack.size() > 0 ) {
-               begin = _stack.front().revision;
+               begin = _stack.front().revision - 1;
                end   = _stack.back().revision;
             }
 
@@ -816,7 +821,7 @@ namespace chainbase {
                      ) );
                   }
 
-                  idx_ptr->set_revision( expected_revision_range.first );
+                  idx_ptr->set_revision( static_cast<uint64_t>(expected_revision_range.first) );
                   while( idx_ptr->revision() < expected_revision_range.second ) {
                      idx_ptr->start_undo_session(true).push();
                   }
