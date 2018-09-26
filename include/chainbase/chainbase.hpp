@@ -351,6 +351,7 @@ namespace chainbase {
             if( !enabled() ) return;
             if( _stack.size() == 1 ) {
                _stack.pop_front();
+               --_revision;
                return;
             }
 
