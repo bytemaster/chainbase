@@ -499,6 +499,8 @@ namespace chainbase {
             return {begin, end};
          }
 
+         const auto& stack()const { return _stack; }
+
       private:
          bool enabled()const { return _stack.size(); }
 
