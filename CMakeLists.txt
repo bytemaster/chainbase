@@ -1,8 +1,8 @@
 # Defines ChainBase library target.
-project( ChainBase )
 cmake_minimum_required( VERSION 2.8.12 )
+project( ChainBase )
 
-#list( APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules" )
+include( GNUInstallDirs )
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 
