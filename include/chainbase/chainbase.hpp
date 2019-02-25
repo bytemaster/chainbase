@@ -9,7 +9,6 @@
 #include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/sync/interprocess_sharable_mutex.hpp>
 #include <boost/interprocess/sync/sharable_lock.hpp>
-#include <boost/interprocess/sync/file_lock.hpp>
 
 #include <boost/multi_index_container.hpp>
 
@@ -27,6 +26,8 @@
 #include <stdexcept>
 #include <typeindex>
 #include <typeinfo>
+
+#include <chainbase/pinnable_mapped_file.hpp>
 
 #ifndef CHAINBASE_NUM_RW_LOCKS
    #define CHAINBASE_NUM_RW_LOCKS 10
@@ -48,14 +49,12 @@ namespace chainbase {
    using std::vector;
 
    template<typename T>
-   using allocator = bip::allocator<T, bip::managed_mapped_file::segment_manager>;
+   using allocator = bip::allocator<T, pinnable_mapped_file::segment_manager>;
 
    typedef bip::basic_string< char, std::char_traits< char >, allocator< char > > shared_string;
 
    template<typename T>
    using shared_vector = std::vector<T, allocator<T> >;
-
-   constexpr char _db_dirty_flag_string[] = "db_dirty_flag";
 
    struct strcmp_less
    {
@@ -689,7 +688,9 @@ namespace chainbase {
 
          using database_index_row_count_multiset = std::multiset<std::pair<unsigned, std::string>>;
 
-         database(const bfs::path& dir, open_flags write = read_only, uint64_t shared_file_size = 0, bool allow_dirty = false);
+         database(const bfs::path& dir, open_flags write = read_only, uint64_t shared_file_size = 0, bool allow_dirty = false,
+                  pinnable_mapped_file::map_mode = pinnable_mapped_file::map_mode::mapped,
+                  std::vector<std::string> hugepage_paths = std::vector<std::string>());
          ~database();
          database(database&&) = default;
          database& operator=(database&&) = default;
@@ -786,14 +787,18 @@ namespace chainbase {
                BOOST_THROW_EXCEPTION( std::logic_error( type_name + "::type_id is already in use" ) );
             }
 
-            index_type* idx_ptr = _segment->find< index_type >( type_name.c_str() ).first;
+            index_type* idx_ptr = nullptr;
+            if( _read_only )
+               idx_ptr = _db_file.get_segment_manager()->find_no_lock< index_type >( type_name.c_str() ).first;
+            else
+               idx_ptr = _db_file.get_segment_manager()->find< index_type >( type_name.c_str() ).first;
             bool first_time_adding = false;
             if( !idx_ptr ) {
                if( _read_only ) {
                   BOOST_THROW_EXCEPTION( std::runtime_error( "unable to find index for " + type_name + " in read only database" ) );
                }
                first_time_adding = true;
-               idx_ptr = _segment->construct< index_type >( type_name.c_str() )( index_alloc( _segment->get_segment_manager() ) );
+               idx_ptr = _db_file.get_segment_manager()->construct< index_type >( type_name.c_str() )( index_alloc( _db_file.get_segment_manager() ) );
              }
 
             idx_ptr->validate();
@@ -838,17 +843,17 @@ namespace chainbase {
             _index_list.push_back( new_index );
          }
 
-         auto get_segment_manager() -> decltype( ((bip::managed_mapped_file*)nullptr)->get_segment_manager()) {
-            return _segment->get_segment_manager();
+         auto get_segment_manager() -> decltype( ((pinnable_mapped_file*)nullptr)->get_segment_manager()) {
+            return _db_file.get_segment_manager();
          }
 
-         auto get_segment_manager()const -> std::add_const_t< decltype( ((bip::managed_mapped_file*)nullptr)->get_segment_manager() ) > {
-            return _segment->get_segment_manager();
+         auto get_segment_manager()const -> std::add_const_t< decltype( ((pinnable_mapped_file*)nullptr)->get_segment_manager() ) > {
+            return _db_file.get_segment_manager();
          }
 
          size_t get_free_memory()const
          {
-            return _segment->get_segment_manager()->get_free_memory();
+            return _db_file.get_segment_manager()->get_free_memory();
          }
 
          template<typename MultiIndexType>
@@ -956,58 +961,6 @@ namespace chainbase {
              return get_mutable_index<index_type>().emplace( std::forward<Constructor>(con) );
          }
 
-         template< typename Lambda >
-         auto with_read_lock( Lambda&& callback, uint64_t wait_micro = 1000000 ) const -> decltype( (*(Lambda*)nullptr)() )
-         {
-            read_lock lock( _rw_manager->current_lock(), bip::defer_lock_type() );
-#ifdef CHAINBASE_CHECK_LOCKING
-            BOOST_ATTRIBUTE_UNUSED
-            int_incrementer ii( _read_lock_count );
-#endif
-
-            if( !wait_micro )
-            {
-               lock.lock();
-            }
-            else
-            {
-
-               if( !lock.timed_lock( boost::posix_time::microsec_clock::local_time() + boost::posix_time::microseconds( wait_micro ) ) )
-                  BOOST_THROW_EXCEPTION( std::runtime_error( "unable to acquire lock" ) );
-            }
-
-            return callback();
-         }
-
-         template< typename Lambda >
-         auto with_write_lock( Lambda&& callback, uint64_t wait_micro = 1000000 ) -> decltype( (*(Lambda*)nullptr)() )
-         {
-            if( _read_only )
-               BOOST_THROW_EXCEPTION( std::logic_error( "cannot acquire write lock on read-only process" ) );
-
-            write_lock lock( _rw_manager->current_lock(), boost::defer_lock_t() );
-#ifdef CHAINBASE_CHECK_LOCKING
-            BOOST_ATTRIBUTE_UNUSED
-            int_incrementer ii( _write_lock_count );
-#endif
-
-            if( !wait_micro )
-            {
-               lock.lock();
-            }
-            else
-            {
-               while( !lock.timed_lock( boost::posix_time::microsec_clock::local_time() + boost::posix_time::microseconds( wait_micro ) ) )
-               {
-                  _rw_manager->next_lock();
-                  std::cerr << "Lock timeout, moving to lock " << _rw_manager->current_lock_num() << std::endl;
-                  lock = write_lock( _rw_manager->current_lock(), boost::defer_lock_t() );
-               }
-            }
-
-            return callback();
-         }
-
          database_index_row_count_multiset row_count_per_index()const {
             database_index_row_count_multiset ret;
             for(const auto& ai_ptr : _index_map) {
@@ -1019,11 +972,8 @@ namespace chainbase {
          }
 
       private:
-         unique_ptr<bip::managed_mapped_file>                        _segment;
-         unique_ptr<bip::managed_mapped_file>                        _meta;
-         read_write_mutex_manager*                                   _rw_manager = nullptr;
+         pinnable_mapped_file                                        _db_file;
          bool                                                        _read_only = false;
-         bip::file_lock                                              _flock;
 
          /**
           * This is a sparse list of known indices kept to accelerate creation of undo sessions
@@ -1035,15 +985,11 @@ namespace chainbase {
           */
          vector<unique_ptr<abstract_index>>                          _index_map;
 
-         bfs::path                                                   _data_dir;
-
 #ifdef CHAINBASE_CHECK_LOCKING
          int32_t                                                     _read_lock_count = 0;
          int32_t                                                     _write_lock_count = 0;
          bool                                                        _enable_require_locking = false;
 #endif
-
-         void                                                        _msync_database();
    };
 
    template<typename Object, typename... Args>
