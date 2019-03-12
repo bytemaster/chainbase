@@ -31,7 +31,7 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
 #endif
 
    if(!_writable && !bfs::exists(_data_file_path))
-      BOOST_THROW_EXCEPTION(std::runtime_error("database file not found at " + _data_file_path.native()));
+      BOOST_THROW_EXCEPTION(std::runtime_error("database file not found at " + _data_file_path.string()));
    bfs::create_directories(dir);
 
    if(bfs::exists(_data_file_path)) {
@@ -87,7 +87,10 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
    }
    else {
       boost::asio::io_service sig_ios;
-      boost::asio::signal_set sig_set(sig_ios, SIGINT, SIGTERM, SIGPIPE);
+      boost::asio::signal_set sig_set(sig_ios, SIGINT, SIGTERM);
+#ifdef SIGPIPE
+      sig_set.add(SIGPIPE);
+#endif
       sig_set.async_wait([](const boost::system::error_code&, int) {
          BOOST_THROW_EXCEPTION(std::runtime_error("Database load aborted"));
       });
@@ -265,7 +268,7 @@ std::ostream& operator<<(std::ostream& osm, pinnable_mapped_file::map_mode m) {
       osm << "mapped";
    else if (m == pinnable_mapped_file::map_mode::heap)
       osm << "heap";
-   else if (pinnable_mapped_file::map_mode::locked)
+   else if (m == pinnable_mapped_file::map_mode::locked)
       osm << "locked";
 
    return osm;
