@@ -7,13 +7,11 @@ cmake_minimum_required( VERSION 2.8.12 )
 set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 
 SET(BOOST_COMPONENTS)
-LIST(APPEND BOOST_COMPONENTS thread
-                             date_time
+LIST(APPEND BOOST_COMPONENTS date_time
                              filesystem
                              system
                              chrono
-                             unit_test_framework
-                             locale)
+                             unit_test_framework)
 
 SET( Boost_USE_STATIC_LIBS ON CACHE STRING "ON or OFF" )
 
