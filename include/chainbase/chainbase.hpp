@@ -16,7 +16,6 @@
 #include <boost/config.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
-#include <boost/thread.hpp>
 #include <boost/throw_exception.hpp>
 
 #include <array>
@@ -81,7 +80,6 @@ namespace chainbase {
 
    typedef boost::interprocess::interprocess_sharable_mutex read_write_mutex;
    typedef boost::interprocess::sharable_lock< read_write_mutex > read_lock;
-   typedef boost::unique_lock< read_write_mutex > write_lock;
 
    /**
     *  Object ID type that includes the type of the object it references
