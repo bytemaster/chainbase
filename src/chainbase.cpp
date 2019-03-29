@@ -3,7 +3,9 @@
 
 #include <iostream>
 
+#ifndef _WIN32
 #include <sys/mman.h>
+#endif
 
 namespace chainbase {
 

@@ -44,7 +44,7 @@ class pinnable_mapped_file {
       bip::mapped_region                            _mapped_region;
 
 #ifdef _WIN32
-      bip::permissions                              _db_permissions
+      bip::permissions                              _db_permissions;
 #else
       bip::permissions                              _db_permissions{S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH};
 #endif
