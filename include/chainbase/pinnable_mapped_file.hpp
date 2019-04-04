@@ -10,8 +10,6 @@ namespace chainbase {
 namespace bip = boost::interprocess;
 namespace bfs = boost::filesystem;
 
-constexpr char _db_dirty_flag_string[] = "db_dirty_flag";
-
 class pinnable_mapped_file {
    public:
       typedef typename bip::managed_mapped_file::segment_manager segment_manager;
@@ -28,6 +26,7 @@ class pinnable_mapped_file {
       segment_manager* get_segment_manager() const { return _segment_manager;}
 
    private:
+      void                                          set_mapped_file_db_dirty(bool);
       void                                          msync_boost_mapped_file();
       void                                          load_database_file(boost::asio::io_service& sig_ios);
       void                                          save_database_file();
@@ -35,12 +34,12 @@ class pinnable_mapped_file {
       bool                                          all_zeros(char* data, size_t sz);
       bip::mapped_region                            get_huge_region(const std::vector<std::string>& huge_paths);
 
-      std::unique_ptr<bip::managed_mapped_file>     _mapped_file;
       bip::file_lock                                _mapped_file_lock;
       bfs::path                                     _data_file_path;
       std::string                                   _database_name;
       bool                                          _writable;
 
+      bip::mapped_region                            _file_mapped_region;
       bip::mapped_region                            _mapped_region;
 
 #ifdef _WIN32
