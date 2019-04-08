@@ -21,6 +21,8 @@ class pinnable_mapped_file {
       };
 
       pinnable_mapped_file(const bfs::path& dir, bool writable, uint64_t shared_file_size, bool allow_dirty, map_mode mode, std::vector<std::string> hugepage_paths);
+      pinnable_mapped_file(pinnable_mapped_file&&) = default;
+      pinnable_mapped_file& operator=(pinnable_mapped_file&&) = default;
       ~pinnable_mapped_file();
 
       segment_manager* get_segment_manager() const { return _segment_manager;}
