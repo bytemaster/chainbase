@@ -213,28 +213,38 @@ void pinnable_mapped_file::save_database_file() {
       }
    }
    std::cerr << "           Syncing buffers..." << std::endl;
-   if(_file_mapped_region.flush(0, _file_mapped_region.get_size(), false) == false)
+   if(_file_mapped_region.flush(0, 0, false) == false)
       std::cerr << "CHAINBASE: ERROR: syncing buffers failed" << std::endl;
    std::cerr << "           Complete" << std::endl;
 }
 
+pinnable_mapped_file::pinnable_mapped_file(pinnable_mapped_file&& o) :
+   _mapped_file_lock(std::move(o._mapped_file_lock)),
+   _data_file_path(std::move(o._data_file_path)),
+   _database_name(std::move(o._database_name)),
+   _file_mapped_region(std::move(o._file_mapped_region)),
+   _mapped_region(std::move(o._mapped_region))
+{
+   _segment_manager = o._segment_manager;
+   _writable = o._writable;
+   o._writable = false; //prevent dtor from doing anything interesting
+}
+
 pinnable_mapped_file::~pinnable_mapped_file() {
-   const bool is_heap_or_locked = _mapped_region.get_address();
    if(_writable) {
-      if(is_heap_or_locked)
+      if(_mapped_region.get_address()) //in heap or locked mode
          save_database_file();
       else
-         _file_mapped_region.flush(0, 0, false);
+         if(_file_mapped_region.flush(0, 0, false) == false)
+            std::cerr << "CHAINBASE: ERROR: syncing buffers failed" << std::endl;
       set_mapped_file_db_dirty(false);
-#ifdef _WIN32
-      std::cerr << "Warning: chainbase cannot ensure safe database sync on win32" << std::endl;
-#endif
    }
 }
 
 void pinnable_mapped_file::set_mapped_file_db_dirty(bool dirty) {
    *((char*)_file_mapped_region.get_address()+header_dirty_bit_offset) = dirty;
-   _file_mapped_region.flush(0, 0, false);
+   if(_file_mapped_region.flush(0, 0, false) == false)
+      std::cerr << "CHAINBASE: ERROR: syncing buffers failed" << std::endl;
 }
 
 std::istream& operator>>(std::istream& in, pinnable_mapped_file::map_mode& runtime) {

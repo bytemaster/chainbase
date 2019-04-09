@@ -21,18 +21,17 @@ class pinnable_mapped_file {
       };
 
       pinnable_mapped_file(const bfs::path& dir, bool writable, uint64_t shared_file_size, bool allow_dirty, map_mode mode, std::vector<std::string> hugepage_paths);
-      pinnable_mapped_file(pinnable_mapped_file&&) = default;
-      pinnable_mapped_file& operator=(pinnable_mapped_file&&) = default;
+      pinnable_mapped_file(pinnable_mapped_file&& o);
+      pinnable_mapped_file(const pinnable_mapped_file&) = delete;
+      pinnable_mapped_file& operator=(const pinnable_mapped_file&) = delete;
       ~pinnable_mapped_file();
 
       segment_manager* get_segment_manager() const { return _segment_manager;}
 
    private:
       void                                          set_mapped_file_db_dirty(bool);
-      void                                          msync_boost_mapped_file();
       void                                          load_database_file(boost::asio::io_service& sig_ios);
       void                                          save_database_file();
-      void                                          finialize_database_file(bool*);
       bool                                          all_zeros(char* data, size_t sz);
       bip::mapped_region                            get_huge_region(const std::vector<std::string>& huge_paths);
 
