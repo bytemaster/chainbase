@@ -230,6 +230,18 @@ pinnable_mapped_file::pinnable_mapped_file(pinnable_mapped_file&& o) :
    o._writable = false; //prevent dtor from doing anything interesting
 }
 
+pinnable_mapped_file& pinnable_mapped_file::operator=(pinnable_mapped_file&& o) {
+   _mapped_file_lock = std::move(o._mapped_file_lock);
+   _data_file_path = std::move(o._data_file_path);
+   _database_name = std::move(o._database_name);
+   _file_mapped_region = std::move(o._file_mapped_region);
+   _mapped_region = std::move(o._mapped_region);
+   _segment_manager = o._segment_manager;
+   _writable = o._writable;
+   o._writable = false; //prevent dtor from doing anything interesting
+   return *this;
+}
+
 pinnable_mapped_file::~pinnable_mapped_file() {
    if(_writable) {
       if(_mapped_region.get_address()) //in heap or locked mode

@@ -22,6 +22,7 @@ class pinnable_mapped_file {
 
       pinnable_mapped_file(const bfs::path& dir, bool writable, uint64_t shared_file_size, bool allow_dirty, map_mode mode, std::vector<std::string> hugepage_paths);
       pinnable_mapped_file(pinnable_mapped_file&& o);
+      pinnable_mapped_file& operator=(pinnable_mapped_file&&);
       pinnable_mapped_file(const pinnable_mapped_file&) = delete;
       pinnable_mapped_file& operator=(const pinnable_mapped_file&) = delete;
       ~pinnable_mapped_file();
