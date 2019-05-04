@@ -220,11 +220,15 @@ namespace chainbase {
             return *insert_result.first;
          }
 
+         /**
+          *  @pre modifier cannot change the object in such a way that causes a uniqueness violation for any unique indices
+          *  @pre any modifications done within an undo session for a given generic_index must satisfy the condition that the compacted set of modifications in the session can be undone in any order without causing a uniqueness violation in any intermediate step
+          */
          template<typename Modifier>
          void modify( const value_type& obj, Modifier&& m ) {
             on_modify( obj );
             auto ok = _indices.modify( _indices.iterator_to( obj ), m );
-            if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not modify object, most likely a uniqueness constraint was violated" ) );
+            if( !ok ) std::abort(); // uniqueness violation
          }
 
          void remove( const value_type& obj ) {
@@ -309,18 +313,14 @@ namespace chainbase {
          /**
           *  Restores the state to how it was prior to the current session discarding all changes
           *  made between the last revision and the current revision.
+          *
+          *  This function will not throw an exception but will abort if a uniqueness constraint violation
+          *  is encountered while undoing, likely because of a prior violation of the preconditions of modify.
           */
          void undo() {
             if( !enabled() ) return;
 
             const auto& head = _stack.back();
-
-            for( auto& item : head.old_values ) {
-               auto ok = _indices.modify( _indices.find( item.second.id ), [&]( value_type& v ) {
-                  v = std::move( item.second );
-               });
-               if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not modify object, most likely a uniqueness constraint was violated" ) );
-            }
 
             for( auto id : head.new_ids )
             {
@@ -328,9 +328,16 @@ namespace chainbase {
             }
             _next_id = head.old_next_id;
 
+            for( auto& item : head.old_values ) {
+               auto ok = _indices.modify( _indices.find( item.second.id ), [&]( value_type& v ) {
+                  v = std::move( item.second );
+               });
+               if( !ok ) std::abort(); // uniqueness violation
+            }
+
             for( auto& item : head.removed_values ) {
                bool ok = _indices.emplace( std::move( item.second ) ).second;
-               if( !ok ) BOOST_THROW_EXCEPTION( std::logic_error( "Could not restore object, most likely a uniqueness constraint was violated" ) );
+               if( !ok ) std::abort(); // uniqueness violation
             }
 
             _stack.pop_back();
