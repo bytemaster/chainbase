@@ -67,7 +67,7 @@ struct environment  {
 struct db_header  {
    uint64_t id = header_id;
    bool dirty = false;
-   environment environ;
+   environment dbenviron;
 } __attribute__ ((packed));
 
 constexpr size_t header_dirty_bit_offset = offsetof(db_header, dirty);
