@@ -41,6 +41,7 @@ class pinnable_mapped_file {
       std::string                                   _database_name;
       bool                                          _writable;
 
+      bip::file_mapping                             _file_mapping;
       bip::mapped_region                            _file_mapped_region;
       bip::mapped_region                            _mapped_region;
 

@@ -61,7 +61,8 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
    if(!bfs::exists(_data_file_path)) {
       std::ofstream ofs(_data_file_path.generic_string(), std::ofstream::trunc);
       bfs::resize_file(_data_file_path, shared_file_size);
-      _file_mapped_region = bip::mapped_region(bip::file_mapping(_data_file_path.generic_string().c_str(), bip::read_write), bip::read_write);
+      _file_mapping = bip::file_mapping(_data_file_path.generic_string().c_str(), bip::read_write);
+      _file_mapped_region = bip::mapped_region(_file_mapping, bip::read_write);
       file_mapped_segment_manager = new ((char*)_file_mapped_region.get_address()+header_size) segment_manager(shared_file_size-header_size);
       new (_file_mapped_region.get_address()) db_header;
    }
@@ -72,13 +73,15 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
             grow = shared_file_size - existing_file_size;
             bfs::resize_file(_data_file_path, shared_file_size);
          }
-         _file_mapped_region = bip::mapped_region(bip::file_mapping(_data_file_path.generic_string().c_str(), bip::read_write), bip::read_write);
+         _file_mapping = bip::file_mapping(_data_file_path.generic_string().c_str(), bip::read_write);
+         _file_mapped_region = bip::mapped_region(_file_mapping, bip::read_write);
          file_mapped_segment_manager = reinterpret_cast<segment_manager*>((char*)_file_mapped_region.get_address()+header_size);
          if(grow)
             file_mapped_segment_manager->grow(grow);
    }
    else {
-         _file_mapped_region = bip::mapped_region(bip::file_mapping(_data_file_path.generic_string().c_str(), bip::read_only), bip::read_only);
+         _file_mapping = bip::file_mapping(_data_file_path.generic_string().c_str(), bip::read_only);
+         _file_mapped_region = bip::mapped_region(_file_mapping, bip::read_only);
          file_mapped_segment_manager = reinterpret_cast<segment_manager*>((char*)_file_mapped_region.get_address()+header_size);
    }
 
@@ -122,6 +125,8 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
             std::cerr << "CHAINBASE: Database \"" << _database_name << "\" has been successfully locked in memory" << std::endl;
 #endif
          }
+
+         _file_mapped_region = bip::mapped_region();
       }
       catch(...) {
          if(_writable)
@@ -244,8 +249,10 @@ pinnable_mapped_file& pinnable_mapped_file::operator=(pinnable_mapped_file&& o) 
 
 pinnable_mapped_file::~pinnable_mapped_file() {
    if(_writable) {
-      if(_mapped_region.get_address()) //in heap or locked mode
+      if(_mapped_region.get_address()) { //in heap or locked mode
+         _file_mapped_region = bip::mapped_region(_file_mapping, bip::read_write);
          save_database_file();
+      }
       else
          if(_file_mapped_region.flush(0, 0, false) == false)
             std::cerr << "CHAINBASE: ERROR: syncing buffers failed" << std::endl;
