@@ -60,6 +60,8 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
    segment_manager* file_mapped_segment_manager = nullptr;
    if(!bfs::exists(_data_file_path)) {
       std::ofstream ofs(_data_file_path.generic_string(), std::ofstream::trunc);
+      //win32 impl of bfs::resize_file() doesn't like the file being open
+      ofs.close();
       bfs::resize_file(_data_file_path, shared_file_size);
       _file_mapping = bip::file_mapping(_data_file_path.generic_string().c_str(), bip::read_write);
       _file_mapped_region = bip::mapped_region(_file_mapping, bip::read_write);
