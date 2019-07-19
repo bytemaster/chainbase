@@ -9,6 +9,7 @@
 #include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/sync/interprocess_sharable_mutex.hpp>
 #include <boost/interprocess/sync/sharable_lock.hpp>
+#include <boost/core/demangle.hpp>
 
 #include <boost/multi_index_container.hpp>
 
