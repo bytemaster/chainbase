@@ -10,6 +10,31 @@ namespace chainbase {
 namespace bip = boost::interprocess;
 namespace bfs = boost::filesystem;
 
+class db_runtime_error : public std::runtime_error {
+public:
+  enum error_code {
+     dirty = 1001,
+     incompatible,
+     locked_mode_required,
+     not_found,
+     bad_size,
+     no_huge_page,
+     no_locked_mode,
+     bad_header,
+     no_access,
+     aborted,
+     no_mlock
+  };
+
+  db_runtime_error(const std::string& what_arg, error_code what_code) : std::runtime_error(what_arg) {
+     _what_code = what_code;
+  }
+
+   error_code what_code() const {return _what_code;}
+private:
+   error_code _what_code;
+};
+
 class pinnable_mapped_file {
    public:
       typedef typename bip::managed_mapped_file::segment_manager segment_manager;

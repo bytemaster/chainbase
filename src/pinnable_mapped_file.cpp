@@ -19,20 +19,22 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
    _writable(writable)
 {
    if(shared_file_size % _db_size_multiple_requirement)
-      BOOST_THROW_EXCEPTION(std::runtime_error("Database must be mulitple of " + std::to_string(_db_size_multiple_requirement) + " bytes"));
+      BOOST_THROW_EXCEPTION(db_runtime_error("Database must be mulitple of " +
+         std::to_string(_db_size_multiple_requirement) + " bytes", db_runtime_error::bad_size));
 #ifndef __linux__
    if(hugepage_paths.size())
-      BOOST_THROW_EXCEPTION(std::runtime_error("Hugepage support is a linux only feature"));
+      BOOST_THROW_EXCEPTION(db_runtime_error("Hugepage support is a linux only feature", db_runtime_error::no_huge_page));
 #endif
    if(hugepage_paths.size() && mode != locked)
-      BOOST_THROW_EXCEPTION(std::runtime_error("Locked mode is required for hugepage usage"));
+      BOOST_THROW_EXCEPTION(db_runtime_error("Locked mode is required for hugepage usage", db_runtime_error::locked_mode_required));
 #ifdef _WIN32
    if(mode == locked)
-      BOOST_THROW_EXCEPTION(std::runtime_error("Locked mode not supported on win32"));
+      BOOST_THROW_EXCEPTION(db_runtime_error("Locked mode not supported on win32", db_runtime_error::no_locked_mode));
 #endif
 
    if(!_writable && !bfs::exists(_data_file_path))
-      BOOST_THROW_EXCEPTION(std::runtime_error("database file not found at " + _data_file_path.string()));
+      BOOST_THROW_EXCEPTION(db_runtime_error("database file not found at " + _data_file_path.string(),
+         db_runtime_error::not_found));
    bfs::create_directories(dir);
 
    if(bfs::exists(_data_file_path)) {
@@ -40,20 +42,21 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
       std::ifstream hs(_data_file_path.generic_string(), std::ifstream::binary);
       hs.read(header, header_size);
       if(hs.fail())
-         BOOST_THROW_EXCEPTION(std::runtime_error("Failed to read DB header."));
+         BOOST_THROW_EXCEPTION(db_runtime_error("Failed to read DB header.", db_runtime_error::bad_header));
 
       db_header* dbheader = reinterpret_cast<db_header*>(header);
       if(dbheader->id != header_id)
-         BOOST_THROW_EXCEPTION(std::runtime_error("\"" + _database_name + "\" database format not compatible with this version of chainbase."));
+         BOOST_THROW_EXCEPTION(db_runtime_error("\"" + _database_name +
+            "\" database format not compatible with this version of chainbase.", db_runtime_error::incompatible));
       if(!allow_dirty && dbheader->dirty)
-         throw std::runtime_error("\"" + _database_name + "\" database dirty flag set");
+         throw db_runtime_error("\"" + _database_name + "\" database dirty flag set", db_runtime_error::dirty);
       if(dbheader->dbenviron != environment()) {
          std::cerr << "CHAINBASE: \"" << _database_name << "\" database was created with a chainbase from a different environment" << std::endl;
          std::cerr << "Current compiler environment:" << std::endl;
          std::cerr << environment();
          std::cerr << "DB created with compiler environment:" << std::endl;
          std::cerr << dbheader->dbenviron;
-         BOOST_THROW_EXCEPTION(std::runtime_error("All environment parameters must match"));
+         BOOST_THROW_EXCEPTION(db_runtime_error("All environment parameters must match", db_runtime_error::incompatible));
       }
    }
 
@@ -94,7 +97,7 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
 
       _mapped_file_lock = bip::file_lock(_data_file_path.generic_string().c_str());
       if(!_mapped_file_lock.try_lock())
-         BOOST_THROW_EXCEPTION(std::runtime_error("could not gain write access to the shared memory file"));
+         BOOST_THROW_EXCEPTION(db_runtime_error("could not gain write access to the shared memory file", db_runtime_error::no_access));
 
       set_mapped_file_db_dirty(true);
    }
@@ -109,7 +112,7 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
       sig_set.add(SIGPIPE);
 #endif
       sig_set.async_wait([](const boost::system::error_code&, int) {
-         BOOST_THROW_EXCEPTION(std::runtime_error("Database load aborted"));
+         BOOST_THROW_EXCEPTION(db_runtime_error("Database load aborted", db_runtime_error::aborted));
       });
 
       try {
@@ -123,7 +126,8 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
          if(mode == locked) {
 #ifndef _WIN32
             if(mlock(_mapped_region.get_address(), _mapped_region.get_size()))
-               BOOST_THROW_EXCEPTION(std::runtime_error("Failed to mlock database \"" + _database_name + "\""));
+               BOOST_THROW_EXCEPTION(db_runtime_error("Failed to mlock database \"" + _database_name + "\"",
+                     db_runtime_error::no_mlock));
             std::cerr << "CHAINBASE: Database \"" << _database_name << "\" has been successfully locked in memory" << std::endl;
 #endif
          }
